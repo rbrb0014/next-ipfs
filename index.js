@@ -36,7 +36,7 @@ const ivString = 'passwordpassword';
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = req.file;
-  const directory = req.query.dir ?? '';
+  const directory = req.query.path ?? '';
   const path = `${directory}/${originalname}`;
 
   const fragments = fragging(buffer, split_count);
