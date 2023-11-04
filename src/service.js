@@ -1,16 +1,12 @@
-import { createCipheriv, createDecipheriv, scrypt } from 'crypto';
+import { createCipheriv, createDecipheriv } from 'crypto';
 import { ipfs } from '../index.js';
-import { promisify } from 'util';
 import { concat as uint8ArrayConcat } from 'uint8arrays/concat';
 import { scryptSync } from 'crypto';
 
-const decoder = new TextDecoder();
-const encoder = new TextEncoder();
-
-export function fragging(buffer, split_count) {
+export function fragging(buffer, frag_length) {
   const length = buffer.length;
   // buffer.byteLength
-  const frag_length = length / split_count;
+  const split_count = length / frag_length;
   const fragments = [];
   for (let i = 0; i < split_count; i++) {
     const subBuffer = buffer.subarray(
@@ -18,78 +14,67 @@ export function fragging(buffer, split_count) {
       Math.min((i + 1) * frag_length, length)
     );
     // console.log(subBuffer);
-    fragments.push(subBuffer.toString('utf8'));
+    fragments.push(subBuffer);
   }
   // console.log(fragments.map((str) => encoder.encode(str)));
   return fragments;
 }
 
 export function encrypt(fragments, keyString, ivString) {
-  const encryptedFragments = [];
   const keys = [];
   const iv = Buffer.from(ivString).subarray(0, 16);
-  for (let i = 0; i < fragments.length; i++) {
-    const frag = fragments[i];
+  const encryptedFragments = fragments.map((frag) => {
     const key = scryptSync(keyString, 'salt', 32);
-    console.log(key);
+    // console.log(key);
     const cipher = createCipheriv('aes-256-ctr', key, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(frag, 'utf8'),
-      cipher.final(),
-    ]);
+    const encrypted = Buffer.concat([cipher.update(frag), cipher.final()]);
 
-    encryptedFragments.push(encrypted.toString());
-    keys.push(key.toString());
-  }
-  console.log(keys);
+    keys.push(key.toString('hex'));
+    return encrypted;
+  });
+  // console.log(keys);
   return { encryptedFragments, keys };
 }
 
 export async function ipfsWrite(dataList, path) {
+  const sources = dataList.map((content, i) => ({
+    path: `/${path}-${i}`,
+    content,
+  }));
   const cids = [];
-  for (let i = 0; i < dataList.length; i++) {
-    const data = dataList[i];
-    // const data = encoder.encode(dataList[i]);
-    await ipfs.files.write(`/${path}/${i}`, data, {
-      parents: true,
-      create: true,
-    });
-    const result = await ipfs.files.stat(`/${path}/${i}`);
+  for await (const result of ipfs.addAll(sources)) {
+    console.log(result);
     cids.push(result.cid.toString());
   }
 
   return cids;
 }
 
-export async function ipfsRead(path, cids) {
-  const bufferStrings = [];
-  for (let i = 0; i < cids.length; i++) {
-    const chunks = [];
-    for await (const chunk of ipfs.files.read(`/${path}/${i}`)) {
-      chunks.push(chunk);
-    }
-    const bufferString = uint8ArrayConcat(chunks).toString('utf8');
-    // console.log(bufferHexString);
-    bufferStrings.push(bufferString);
-  }
-  // console.log(bufferHexStrings);
-  return bufferStrings;
+export async function ipfsRead(cids) {
+  return Promise.all(
+    cids.map(async (cid) => {
+      const chunks = [];
+      for await (const chunk of ipfs.cat(cid)) {
+        chunks.push(chunk);
+      }
+      return uint8ArrayConcat(chunks);
+    })
+  );
 }
 
-export async function decrypt(targetStrings, keys, ivString) {
+export async function decrypt(targetBuffers, keys, ivString) {
   const iv = Buffer.from(ivString).subarray(0, 16);
-  const decrypts = [];
-  for (let i = 0; i < targetStrings.length; i++) {
-    const key = Buffer.from(keys[i]);
-    console.log(key);
+  const decryptedFrags = targetBuffers.map((buffer, i) => {
+    const key = Buffer.from(keys[i], 'hex');
+    // console.log(key);
     const decipher = createDecipheriv('aes-256-ctr', key, iv);
-    const encryptedText = Buffer.from(targetStrings[i]);
-    const decryptedText = Buffer.concat([
-      decipher.update(encryptedText),
+    const decryptedBuffer = Buffer.concat([
+      decipher.update(buffer),
       decipher.final(),
     ]);
     // console.log(decryptedText);
-    decrypts.push(decryptedText);
-  }
-  return decrypts.reduce((prev, curr) => Buffer.concat([prev, curr]));
+    return decryptedBuffer;
+  });
+
+  return decryptedFrags;
 }

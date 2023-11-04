@@ -27,7 +27,7 @@ dbClient.connect((error) => {
 });
 export const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
-const split_count = 5;
+const frag_length = 262144;
 
 app.get('/', async (req, res) => {
   res.send(await ipfs.id());
@@ -36,7 +36,7 @@ app.get('/', async (req, res) => {
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname: path, mimetype, buffer } = req.file;
 
-  const fragments = fragging(buffer, split_count);
+  const fragments = fragging(buffer, frag_length);
   const { encryptedFragments, keys } = encrypt(
     fragments,
     path,
@@ -52,9 +52,14 @@ app.post('/contents', upload.single('file'), async (req, res) => {
 app.get('/contents', async (req, res) => {
   const { path } = req.query;
   const { cids, keys, mimetype } = await dataSelectOne(path);
-  const bufferStrings = await ipfsRead(path, cids);
+  // const directoryCID = cids.pop();
+  const buffers = await ipfsRead(cids);
 
-  const result = await decrypt(bufferStrings, keys, 'passwordpassword');
+  const decryptedFrags = await decrypt(buffers, keys, 'passwordpassword');
+
+  const result = decryptedFrags.reduce((prev, curr) =>
+    Buffer.concat([prev, curr])
+  );
 
   res.set('Content-Type', mimetype).send(result);
 });
