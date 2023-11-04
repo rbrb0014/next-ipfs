@@ -43,7 +43,7 @@ export async function ipfsWrite(dataList, path) {
   }));
   const cids = [];
   for await (const result of ipfs.addAll(sources)) {
-    console.log(result);
+    // console.log(result);
     cids.push(result.cid.toString());
   }
 
