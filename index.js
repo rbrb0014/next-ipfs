@@ -26,12 +26,9 @@ dbClient.connect((error) => {
   else console.log('connect success!');
 });
 export const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
+console.log('connected to ipfs\n peer id : ', ipfs.id());
 
 const frag_length = 262144;
-
-app.get('/', async (req, res) => {
-  res.send(await ipfs.id());
-});
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname: path, mimetype, buffer } = req.file;
