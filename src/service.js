@@ -3,10 +3,11 @@ import { ipfs } from '../index.js';
 import { concat as uint8ArrayConcat } from 'uint8arrays/concat';
 import { scryptSync } from 'crypto';
 
-export function fragging(buffer, frag_length) {
+export function fragging(buffer, split_count) {
   const length = buffer.length;
   // buffer.byteLength
-  const split_count = length / frag_length;
+  // const split_count = length / frag_length;
+  const frag_length = length / split_count;
   const fragments = [];
   for (let i = 0; i < split_count; i++) {
     const subBuffer = buffer.subarray(
@@ -37,24 +38,29 @@ export function encrypt(fragments, ivString) {
 }
 
 export async function ipfsWrite(dataList, path) {
-  const sources = dataList.map((content, i) => ({
-    path: `/${path}-${i}`,
-    content,
-  }));
-  const cids = [];
-  for await (const result of ipfs.addAll(sources)) {
-    // console.log(result);
-    cids.push(result.cid.toString());
-  }
-
-  return cids;
+  return Promise.all(
+    dataList.map(async (data, i) => {
+      await ipfs.files.write(`${path}-${i}`, data, {
+        parents: true,
+        create: true,
+      });
+      return ipfs.files
+        .stat(`${path}-${i}`)
+        .then((result) => result.cid.toString());
+    })
+  );
 }
 
-export async function ipfsRead(cids) {
+export async function ipfsRead(cids, path) {
   return Promise.all(
-    cids.map(async (cid) => {
+    cids.map(async (cid, i) => {
+      const fragPath = `${path}-${i}`;
+      // 이미 있으면 cid를 files로 copy해오지 않음.
+      await ipfs.files
+        .cp(`/ipfs/${cid}`, fragPath, { parents: true })
+        .catch(() => console.log('file aleardy exist : ', fragPath));
       const chunks = [];
-      for await (const chunk of ipfs.cat(cid)) {
+      for await (const chunk of ipfs.files.read(fragPath)) {
         chunks.push(chunk);
       }
       return uint8ArrayConcat(chunks);
@@ -86,5 +92,12 @@ export async function unpinAll() {
   }
   for await (const unpinData of ipfs.pin.rmAll(unpinable)) {
     console.log('unpin ', unpinData);
+  }
+}
+
+export async function filesRemoveAll() {
+  for await (const files of ipfs.files.ls('/')) {
+    await ipfs.files.rm(`/${files.name}`, { recursive: true });
+    console.log(`/${files.name} removed`);
   }
 }

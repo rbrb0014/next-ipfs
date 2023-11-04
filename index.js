@@ -5,6 +5,7 @@ import multer from 'multer';
 import {
   decrypt,
   encrypt,
+  filesRemoveAll,
   fragging,
   ipfsRead,
   ipfsWrite,
@@ -29,13 +30,16 @@ dbClient.connect((error) => {
 export const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
 await ipfs.id().then(() => console.log('ipfs connected'));
 
-const frag_length = 262144;
+// const frag_length = 262144;
+const split_count = 5;
 const ivString = 'passwordpassword';
 
 app.post('/contents', upload.single('file'), async (req, res) => {
-  const { originalname: path, mimetype, buffer } = req.file;
+  const { originalname, mimetype, buffer } = req.file;
+  const directory = req.query.dir ?? '';
+  const path = `${directory}/${originalname}`;
 
-  const fragments = fragging(buffer, frag_length);
+  const fragments = fragging(buffer, split_count);
   const { encryptedFragments, keys } = encrypt(fragments, ivString);
   const cids = await ipfsWrite(encryptedFragments, path);
 
@@ -48,7 +52,7 @@ app.get('/contents', async (req, res) => {
   const { path } = req.query;
   const { cids, keys, mimetype } = await dataSelectOne(path);
   // const directoryCID = cids.pop();
-  const buffers = await ipfsRead(cids);
+  const buffers = await ipfsRead(cids, path);
 
   const decryptedFrags = await decrypt(buffers, keys, ivString);
 
@@ -59,9 +63,14 @@ app.get('/contents', async (req, res) => {
   res.set('Content-Type', mimetype).send(result);
 });
 
-app.delete('/ipfs', async (req, res) => {
+app.delete('/pin', async (req, res) => {
   await unpinAll();
   res.send('successfully unpinned');
+});
+
+app.delete('/files', async (req, res) => {
+  await filesRemoveAll();
+  res.send('successfully files removed');
 });
 
 app.listen(3000);
