@@ -8,6 +8,7 @@ import {
   fragging,
   ipfsRead,
   ipfsWrite,
+  unpinAll,
 } from './src/service.js';
 import { dataInsert, dataSelectOne } from './src/dbQuery.js';
 
@@ -23,22 +24,19 @@ export const dbClient = new pg.Client({
 });
 dbClient.connect((error) => {
   if (error) console.error('connection error', error.stack);
-  else console.log('connect success!');
+  else console.log('postgresql connected');
 });
 export const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
-console.log('connected to ipfs\n peer id : ', ipfs.id());
+await ipfs.id().then(() => console.log('ipfs connected'));
 
 const frag_length = 262144;
+const ivString = 'passwordpassword';
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname: path, mimetype, buffer } = req.file;
 
   const fragments = fragging(buffer, frag_length);
-  const { encryptedFragments, keys } = encrypt(
-    fragments,
-    path,
-    'passwordpassword'
-  );
+  const { encryptedFragments, keys } = encrypt(fragments, ivString);
   const cids = await ipfsWrite(encryptedFragments, path);
 
   const result = await dataInsert(mimetype, path, cids, keys);
@@ -52,13 +50,18 @@ app.get('/contents', async (req, res) => {
   // const directoryCID = cids.pop();
   const buffers = await ipfsRead(cids);
 
-  const decryptedFrags = await decrypt(buffers, keys, 'passwordpassword');
+  const decryptedFrags = await decrypt(buffers, keys, ivString);
 
   const result = decryptedFrags.reduce((prev, curr) =>
     Buffer.concat([prev, curr])
   );
 
   res.set('Content-Type', mimetype).send(result);
+});
+
+app.delete('/ipfs', async (req, res) => {
+  await unpinAll();
+  res.send('successfully unpinned');
 });
 
 app.listen(3000);

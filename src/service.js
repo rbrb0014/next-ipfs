@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { ipfs } from '../index.js';
 import { concat as uint8ArrayConcat } from 'uint8arrays/concat';
 import { scryptSync } from 'crypto';
@@ -20,11 +20,11 @@ export function fragging(buffer, frag_length) {
   return fragments;
 }
 
-export function encrypt(fragments, keyString, ivString) {
+export function encrypt(fragments, ivString) {
   const keys = [];
   const iv = Buffer.from(ivString).subarray(0, 16);
   const encryptedFragments = fragments.map((frag) => {
-    const key = scryptSync(keyString, 'salt', 32);
+    const key = scryptSync(randomBytes(16), 'salt', 32);
     // console.log(key);
     const cipher = createCipheriv('aes-256-ctr', key, iv);
     const encrypted = Buffer.concat([cipher.update(frag), cipher.final()]);
@@ -77,4 +77,14 @@ export async function decrypt(targetBuffers, keys, ivString) {
   });
 
   return decryptedFrags;
+}
+
+export async function unpinAll() {
+  const unpinable = [];
+  for await (const pinData of ipfs.pin.ls()) {
+    if (pinData.type == 'recursive') unpinable.push(pinData);
+  }
+  for await (const unpinData of ipfs.pin.rmAll(unpinable)) {
+    console.log('unpin ', unpinData);
+  }
 }
