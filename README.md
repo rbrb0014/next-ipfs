@@ -13,4 +13,5 @@ DB_USER=유저 이름
 DB_PASSWORD=비밀번호
 
 SPLIT_COUNT=나눌 데이터조각 수
+IV_STRING?=암호화에 사용할 IV 문자열
 ```
