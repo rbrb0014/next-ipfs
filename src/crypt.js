@@ -6,6 +6,7 @@ import {
 } from 'crypto';
 import 'dotenv/config';
 
+const algorithm = 'aes-256-ctr';
 const ivString = process.env.IV_STRING;
 const IV = Buffer.from(ivString >= 16 ? ivString : 'default password').subarray(
   0,
@@ -16,7 +17,7 @@ export function encrypt(bufferFrags) {
   const keys = [];
   const encryptedBufferFrags = bufferFrags.map((bufferFrag) => {
     const key = scryptSync(randomBytes(16), 'salt', 32);
-    const cipher = createCipheriv('aes-256-ctr', key, IV);
+    const cipher = createCipheriv(algorithm, key, IV);
 
     const encryptedBufferFrag = Buffer.concat([
       cipher.update(bufferFrag),
@@ -33,7 +34,7 @@ export function encrypt(bufferFrags) {
 export async function decrypt(targetBuffers, keys) {
   const decryptedBufferFrags = targetBuffers.map((buffer, i) => {
     const key = Buffer.from(keys[i], 'hex');
-    const decipher = createDecipheriv('aes-256-ctr', key, IV);
+    const decipher = createDecipheriv(algorithm, key, IV);
 
     const decryptedBufferFrag = Buffer.concat([
       decipher.update(buffer),
