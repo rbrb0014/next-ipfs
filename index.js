@@ -4,6 +4,7 @@ import { dataClear, dataInsert, dataSelectOne } from './src/dbQuery.js';
 import { frag, mergeFrags } from './src/frag.js';
 import { decrypt, encrypt } from './src/crypt.js';
 import { filesRemoveAll, ipfsRead, ipfsWrite, unpinAll } from './src/ipfs.js';
+import { measureExecutionTimeAsync } from './src/time.js';
 
 const app = express();
 const storage = multer.memoryStorage();
@@ -16,7 +17,11 @@ app.post('/contents', upload.single('file'), async (req, res) => {
 
   const bufferFrags = frag(buffer);
   const { encryptedBufferFrags, keys } = encrypt(bufferFrags);
-  const cids = await ipfsWrite(encryptedBufferFrags, path);
+  const cids = await measureExecutionTimeAsync(
+    ipfsWrite,
+    encryptedBufferFrags,
+    path
+  );
   const insertResult = await dataInsert(mimetype, path, cids, keys);
 
   res.json(insertResult);
@@ -26,7 +31,7 @@ app.get('/contents', async (req, res) => {
   const { path } = req.query;
 
   const { cids, keys, mimetype } = await dataSelectOne(path);
-  const bufferFrags = await ipfsRead(cids, path);
+  const bufferFrags = await measureExecutionTimeAsync(ipfsRead, cids, path);
   const decryptedBufferFrags = await decrypt(bufferFrags, keys);
   const mergedData = await mergeFrags(decryptedBufferFrags);
 
