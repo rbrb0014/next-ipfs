@@ -12,7 +12,7 @@ export async function ipfsWrite(dataList, path) {
         create: true,
       });
       return ipfs.files
-        .stat(`${path}-${i}`)
+        .stat(`${path}-${i}`, { hash: true })
         .then((result) => result.cid.toString());
     })
   );
