@@ -13,17 +13,20 @@ import {
   unpinAll,
 } from './src/ipfs.js';
 import { measureExecutionTimeAsync } from './src/time.js';
+import fs from 'fs';
+import stream from 'stream';
 
 const app = express();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.post('/contents/disk', upload.single('file'), async (req, res) => {
-  const { originalname, mimetype } = req.file;
+  const { originalname, mimetype, buffer, size } = req.file;
+  const sourceStream = stream.Readable.from(buffer);
   const directory = req.query.path ?? '';
   const path = `${directory}/${originalname}`;
 
-  const fragStreams = await createFragStreams(originalname);
+  const fragStreams = await createFragStreams(sourceStream, size);
   const { keys, encryptStreams } = encryptStream(fragStreams);
   const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
 
@@ -31,6 +34,20 @@ app.post('/contents/disk', upload.single('file'), async (req, res) => {
 
   res.json(insertResult);
 });
+
+// app.post('/contents/disk', upload.single('file'), async (req, res) => {
+//   const { originalname, mimetype } = req.file;
+//   const directory = req.query.path ?? '';
+//   const path = `${directory}/${originalname}`;
+
+//   const fragStreams = await createFragStreams(originalname);
+//   const { keys, encryptStreams } = encryptStream(fragStreams);
+//   const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
+
+//   const insertResult = await dataInsert(mimetype, path, cids, keys);
+
+//   res.json(insertResult);
+// });
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = req.file;
