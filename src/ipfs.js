@@ -1,9 +1,17 @@
 import { create } from 'kubo-rpc-client';
 import { concat as uint8ArrayConcat } from 'uint8arrays/concat';
+import stream from 'stream';
 
 export const ipfs = create({ url: 'http://127.0.0.1:5001/api/v0' });
 await ipfs.id().then(() => console.log('ipfs connected'));
 
+export async function ipfsWriteStream(dataStreams) {
+  return Promise.all(
+    dataStreams.map(async (dataStream) =>
+      ipfs.add(dataStream).then((result) => result.cid.toString())
+    )
+  );
+}
 export async function ipfsWrite(dataList, path) {
   return Promise.all(
     dataList.map(async (data, i) => {
@@ -33,6 +41,10 @@ export async function ipfsRead(cids, path) {
       return uint8ArrayConcat(chunks);
     })
   );
+}
+
+export async function ipfsReadStream(cids) {
+  return cids.map((cid) => stream.Readable.from(ipfs.cat(cid)));
 }
 
 export async function unpinAll() {

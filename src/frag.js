@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import stream from 'stream';
 
 const split_count = Number(process.env.SPLIT_COUNT);
 
@@ -19,4 +20,17 @@ export function frag(buffer) {
 
 export function mergeFrags(frags) {
   return frags.reduce((prev, curr) => Buffer.concat([prev, curr]));
+}
+
+export async function mergeStream(streams) {
+  const passThrough = new stream.PassThrough();
+
+  for (const stream of streams) {
+    for await (const chunk of stream) {
+      passThrough.write(chunk);
+    }
+  }
+  passThrough.end();
+
+  return passThrough;
 }

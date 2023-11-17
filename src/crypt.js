@@ -45,3 +45,25 @@ export async function decrypt(targetBuffers, keys) {
 
   return decryptedBufferFrags;
 }
+
+export function encryptStream(fragStreams) {
+  const keys = [];
+  const encryptStreams = fragStreams.map((fragStream) => {
+    const key = scryptSync(randomBytes(16), 'salt', 32);
+    const cipher = createCipheriv(algorithm, key, IV);
+
+    keys.push(key.toString('hex'));
+    return fragStream.pipe(cipher);
+  });
+
+  return { keys, encryptStreams };
+}
+
+export function decryptStream(encryptedStreams, keys) {
+  return encryptedStreams.map((encryptedStream, i) => {
+    const key = Buffer.from(keys[i], 'hex');
+    const decipher = createDecipheriv(algorithm, key, IV);
+
+    return encryptedStream.pipe(decipher);
+  });
+}

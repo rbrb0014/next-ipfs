@@ -1,14 +1,36 @@
 import express from 'express';
 import multer from 'multer';
 import { dataClear, dataInsert, dataSelectOne } from './src/dbQuery.js';
-import { frag, mergeFrags } from './src/frag.js';
-import { decrypt, encrypt } from './src/crypt.js';
-import { filesRemoveAll, ipfsRead, ipfsWrite, unpinAll } from './src/ipfs.js';
+import { createFragStreams } from './src/disk.js';
+import { frag, mergeFrags, mergeStream } from './src/frag.js';
+import { decrypt, decryptStream, encrypt, encryptStream } from './src/crypt.js';
+import {
+  filesRemoveAll,
+  ipfsRead,
+  ipfsReadStream,
+  ipfsWrite,
+  ipfsWriteStream,
+  unpinAll,
+} from './src/ipfs.js';
 import { measureExecutionTimeAsync } from './src/time.js';
 
 const app = express();
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+app.post('/contents/disk', upload.single('file'), async (req, res) => {
+  const { originalname, mimetype } = req.file;
+  const directory = req.query.path ?? '';
+  const path = `${directory}/${originalname}`;
+
+  const fragStreams = await createFragStreams(originalname);
+  const { keys, encryptStreams } = encryptStream(fragStreams);
+  const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
+
+  const insertResult = await dataInsert(mimetype, path, cids, keys);
+
+  res.json(insertResult);
+});
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = req.file;
@@ -25,6 +47,22 @@ app.post('/contents', upload.single('file'), async (req, res) => {
   const insertResult = await dataInsert(mimetype, path, cids, keys);
 
   res.json(insertResult);
+});
+
+app.get('/contents/disk', async (req, res) => {
+  const { path } = req.query;
+
+  const { cids, keys, mimetype } = await dataSelectOne(path);
+  const encryptedFragStreams = await measureExecutionTimeAsync(
+    ipfsReadStream,
+    cids,
+    path
+  );
+  const decryptedStreams = await decryptStream(encryptedFragStreams, keys);
+  const mergedStream = await mergeStream(decryptedStreams);
+
+  res.set('Content-Type', mimetype);
+  mergedStream.pipe(res);
 });
 
 app.get('/contents', async (req, res) => {
