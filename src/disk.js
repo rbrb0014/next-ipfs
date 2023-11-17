@@ -15,7 +15,6 @@ export async function createFragStreams(filename) {
     });
     fragStreams.push(readStream);
   }
-  console.log('fragstreams :', fragStreams.length);
 
   return fragStreams;
 }
