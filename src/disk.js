@@ -1,5 +1,5 @@
 import 'dotenv/config';
-// import fs from 'fs';
+import fs from 'fs';
 import stream from 'stream';
 
 const split_count = Number(process.env.SPLIT_COUNT);
@@ -34,18 +34,18 @@ export async function createFragStreams(sourceStream, fileSize) {
   return destStreams;
 }
 
-// export async function createFragStreams(filename) {
-//   const fileSize = fs.statSync(filename).size;
-//   const fragSize = Math.ceil(fileSize / split_count);
+export async function createDiskFragStreams(filename) {
+  const fileSize = fs.statSync(`upload/${filename}`).size;
+  const fragSize = Math.ceil(fileSize / split_count);
 
-//   const fragStreams = [];
-//   for (let i = 0; i < split_count; i++) {
-//     const readStream = fs.createReadStream(`./${filename}`, {
-//       start: i * fragSize,
-//       end: (i + 1) * fragSize - 1,
-//     });
-//     fragStreams.push(readStream);
-//   }
+  const fragStreams = [];
+  for (let i = 0; i < split_count; i++) {
+    const readStream = fs.createReadStream(`upload/${filename}`, {
+      start: i * fragSize,
+      end: (i + 1) * fragSize - 1,
+    });
+    fragStreams.push(readStream);
+  }
 
-//   return fragStreams;
-// }
+  return fragStreams;
+}

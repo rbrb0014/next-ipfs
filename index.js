@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { dataClear, dataInsert, dataSelectOne } from './src/dbQuery.js';
-import { createFragStreams } from './src/disk.js';
+import { createDiskFragStreams, createFragStreams } from './src/disk.js';
 import { frag, mergeFrags, mergeStream } from './src/frag.js';
 import { decrypt, decryptStream, encrypt, encryptStream } from './src/crypt.js';
 import {
@@ -13,14 +13,22 @@ import {
   unpinAll,
 } from './src/ipfs.js';
 import { measureExecutionTimeAsync } from './src/time.js';
-import fs from 'fs';
 import stream from 'stream';
 
 const app = express();
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
+const save = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'upload/');
+    },
+    filename: (req, file, cb) => {
+      cb(null, file.originalname);
+    },
+  }),
+});
 
-app.post('/contents/disk', upload.single('file'), async (req, res) => {
+app.post('/contents/stream', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer, size } = req.file;
   const sourceStream = stream.Readable.from(buffer);
   const directory = req.query.path ?? '';
@@ -35,19 +43,19 @@ app.post('/contents/disk', upload.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
-// app.post('/contents/disk', upload.single('file'), async (req, res) => {
-//   const { originalname, mimetype } = req.file;
-//   const directory = req.query.path ?? '';
-//   const path = `${directory}/${originalname}`;
+app.post('/contents/disk', save.single('file'), async (req, res) => {
+  const { originalname, mimetype } = req.file;
+  const directory = req.query.path ?? '';
+  const path = `${directory}/${originalname}`;
 
-//   const fragStreams = await createFragStreams(originalname);
-//   const { keys, encryptStreams } = encryptStream(fragStreams);
-//   const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
+  const fragStreams = await createDiskFragStreams(originalname);
+  const { keys, encryptStreams } = encryptStream(fragStreams);
+  const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
 
-//   const insertResult = await dataInsert(mimetype, path, cids, keys);
+  const insertResult = await dataInsert(mimetype, path, cids, keys);
 
-//   res.json(insertResult);
-// });
+  res.json(insertResult);
+});
 
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = req.file;
@@ -66,7 +74,7 @@ app.post('/contents', upload.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
-app.get('/contents/disk', async (req, res) => {
+app.get('/contents/stream', async (req, res) => {
   const { path } = req.query;
 
   const { cids, keys, mimetype } = await dataSelectOne(path);
@@ -79,7 +87,12 @@ app.get('/contents/disk', async (req, res) => {
   const mergedStream = await mergeStream(decryptedStreams);
 
   res.set('Content-Type', mimetype);
-  mergedStream.pipe(res);
+  mergedStream.on('data', (chunk) => {
+    res.write(chunk);
+  });
+  mergedStream.on('end', () => {
+    res.end();
+  });
 });
 
 app.get('/contents', async (req, res) => {
