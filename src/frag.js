@@ -1,6 +1,4 @@
 import 'dotenv/config';
-import stream, { pipeline } from 'stream';
-import { promisify } from 'util';
 
 const split_count = Number(process.env.SPLIT_COUNT);
 
@@ -47,20 +45,20 @@ export function mergeFrags(frags) {
 //   return passThrough;
 // }
 
-export async function mergeStream(streams) {
-  const passThrough = new stream.PassThrough();
+// export async function mergeStream(streams) {
+//   const passThrough = new stream.PassThrough();
 
-  function pipeStream(index) {
-    if (index === streams.length) {
-      passThrough.end();
-      return;
-    }
+//   function pipeStream(index) {
+//     if (index === streams.length) {
+//       passThrough.end();
+//       return;
+//     }
 
-    streams[index].pipe(passThrough, { end: false });
-    streams[index].on('end', () => pipeStream(index + 1));
-  }
+//     streams[index].pipe(passThrough, { end: false });
+//     streams[index].on('end', () => pipeStream(index + 1));
+//   }
 
-  pipeStream(0);
+//   pipeStream(0);
 
-  return passThrough;
-}
+//   return passThrough;
+// }

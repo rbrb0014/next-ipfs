@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { dataClear, dataInsert, dataSelectOne } from './src/dbQuery.js';
 import { createDiskFragStreams, createFragStreams } from './src/disk.js';
-import { frag, mergeFrags, mergeStream } from './src/frag.js';
+import { frag, mergeFrags } from './src/frag.js';
 import { decrypt, decryptStream, encrypt, encryptStream } from './src/crypt.js';
 import {
   filesRemoveAll,
@@ -13,7 +13,11 @@ import {
   unpinAll,
 } from './src/ipfs.js';
 import { measureExecutionTimeAsync } from './src/time.js';
-import stream from 'stream';
+import stream, { pipeline } from 'stream';
+import EventEmitter from 'events';
+import { promisify } from 'util';
+
+EventEmitter.defaultMaxListeners = 20;
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -28,6 +32,7 @@ const save = multer({
   }),
 });
 
+//메모리 규모 커야해서 힘듦
 app.post('/contents/stream', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer, size } = req.file;
   const sourceStream = stream.Readable.from(buffer);
@@ -78,21 +83,16 @@ app.get('/contents/stream', async (req, res) => {
   const { path } = req.query;
 
   const { cids, keys, mimetype } = await dataSelectOne(path);
-  const encryptedFragStreams = await measureExecutionTimeAsync(
-    ipfsReadStream,
-    cids,
-    path
-  );
-  const decryptedStreams = await decryptStream(encryptedFragStreams, keys);
-  const mergedStream = await mergeStream(decryptedStreams);
+  const cryptFragStreams = ipfsReadStream(cids, path);
+  const decryptedStreams = decryptStream(cryptFragStreams, keys);
 
   res.set('Content-Type', mimetype);
-  mergedStream.on('data', (chunk) => {
-    res.write(chunk);
-  });
-  mergedStream.on('end', () => {
-    res.end();
-  });
+  for (const decryptedStream of decryptedStreams) {
+    console.log('sending frag...');
+    await promisify(pipeline)(decryptedStream, res, { end: false });
+  }
+  console.log('stream end.');
+  res.end();
 });
 
 app.get('/contents', async (req, res) => {

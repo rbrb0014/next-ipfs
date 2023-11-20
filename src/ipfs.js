@@ -12,6 +12,7 @@ export async function ipfsWriteStream(dataStreams) {
     )
   );
 }
+
 export async function ipfsWrite(dataList, path) {
   return Promise.all(
     dataList.map(async (data, i) => {
@@ -43,7 +44,7 @@ export async function ipfsRead(cids, path) {
   );
 }
 
-export async function ipfsReadStream(cids) {
+export function ipfsReadStream(cids) {
   return cids.map((cid) => stream.Readable.from(ipfs.cat(cid)));
 }
 
