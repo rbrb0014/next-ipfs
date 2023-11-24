@@ -1,7 +1,12 @@
 import express from 'express';
 import multer from 'multer';
 import { dataClear, dataInsert, dataSelectOne } from './src/dbQuery.js';
-import { createDiskFragStreams, createFragStreams } from './src/disk.js';
+import {
+  createDiskFragStreams,
+  createDistStreams,
+  createFragStreams,
+  splitFile,
+} from './src/disk.js';
 import { frag, mergeFrags } from './src/frag.js';
 import { decrypt, decryptStream, encrypt, encryptStream } from './src/crypt.js';
 import {
@@ -16,6 +21,7 @@ import { measureExecutionTimeAsync } from './src/time.js';
 import stream, { pipeline } from 'stream';
 import EventEmitter from 'events';
 import { promisify } from 'util';
+import fs from 'fs';
 
 EventEmitter.defaultMaxListeners = 20;
 
@@ -24,15 +30,18 @@ const upload = multer({ storage: multer.memoryStorage() });
 const save = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, 'upload/');
-    },
-    filename: (req, file, cb) => {
-      cb(null, file.originalname);
+      const path = `upload/${req.query.path ?? ''}`;
+      fs.mkdirSync(path, { recursive: true }, (err) => {
+        if (err) throw err;
+      });
+      cb(null, path);
     },
   }),
 });
 
-//메모리 규모 커야해서 힘듦
+/**
+ * @deprecated memory에 너무 큰 파일을 올릴수 없음
+ */
 app.post('/contents/stream', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer, size } = req.file;
   const sourceStream = stream.Readable.from(buffer);
@@ -48,16 +57,41 @@ app.post('/contents/stream', upload.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
+//파일을 원본으로 저장함
 app.post('/contents/disk', save.single('file'), async (req, res) => {
-  const { originalname, mimetype } = req.file;
+  const { originalname, mimetype, destination } = req.file;
   const directory = req.query.path ?? '';
-  const path = `${directory}/${originalname}`;
+  const path = `${destination}/${originalname}`;
+  console.log(path);
 
-  const fragStreams = await createDiskFragStreams(originalname);
+  const fragStreams = await createDiskFragStreams(
+    `${directory}/${req.file.filename}`
+  );
   const { keys, encryptStreams } = encryptStream(fragStreams);
   const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
 
-  const insertResult = await dataInsert(mimetype, path, cids, keys);
+  const insertResult = await dataInsert(mimetype, path, cids, keys, [path]);
+
+  res.json(insertResult);
+});
+
+//파일을 쪼갠 후 저장함
+app.post('/contents/disksplit', save.single('file'), async (req, res) => {
+  const { originalname, mimetype, destination, path: localpath } = req.file;
+  const cloudpath = `${destination}/${originalname}`;
+  const localpaths = await splitFile(localpath ?? '', originalname);
+
+  const fragStreams = createDistStreams(localpaths);
+  const { keys, encryptStreams } = encryptStream(fragStreams);
+  const cids = await measureExecutionTimeAsync(ipfsWriteStream, encryptStreams);
+
+  const insertResult = await dataInsert(
+    mimetype,
+    cloudpath,
+    cids,
+    keys,
+    localpaths
+  );
 
   res.json(insertResult);
 });
@@ -80,8 +114,7 @@ app.post('/contents', upload.single('file'), async (req, res) => {
 });
 
 app.get('/contents/stream', async (req, res) => {
-  const { path } = req.query;
-
+  const path = 'upload/' + (req.query.path ?? '');
   const { cids, keys, mimetype } = await dataSelectOne(path);
   const cryptFragStreams = ipfsReadStream(cids, path);
   const decryptedStreams = decryptStream(cryptFragStreams, keys);
@@ -96,7 +129,7 @@ app.get('/contents/stream', async (req, res) => {
 });
 
 app.get('/contents', async (req, res) => {
-  const { path } = req.query;
+  const path = 'upload/' + (req.query.path ?? '');
 
   const { cids, keys, mimetype } = await dataSelectOne(path);
   const bufferFrags = await measureExecutionTimeAsync(ipfsRead, cids, path);
@@ -107,6 +140,7 @@ app.get('/contents', async (req, res) => {
 });
 
 app.delete('/pin', async (req, res) => {
+  await dataClear();
   await unpinAll();
 
   res.send('successfully unpinned');
