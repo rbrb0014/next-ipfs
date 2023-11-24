@@ -34,13 +34,13 @@ export async function createFragStreams(sourceStream, fileSize) {
   return destStreams;
 }
 
-export async function createDiskFragStreams(filename) {
-  const fileSize = fs.statSync(`upload/${filename}`).size;
+export async function createDiskFragStreams(path) {
+  const fileSize = fs.statSync(`upload/${path}`).size;
   const fragSize = Math.ceil(fileSize / split_count);
 
   const fragStreams = [];
   for (let i = 0; i < split_count; i++) {
-    const readStream = fs.createReadStream(`upload/${filename}`, {
+    const readStream = fs.createReadStream(`upload/${path}`, {
       start: i * fragSize,
       end: (i + 1) * fragSize - 1,
     });
@@ -48,4 +48,49 @@ export async function createDiskFragStreams(filename) {
   }
 
   return fragStreams;
+}
+
+export function createDistStreams(paths) {
+  return paths.map((path) => fs.createReadStream(path));
+}
+
+export async function splitFile(path) {
+  const fileSize = fs.statSync(path).size;
+  const fragSize = Math.ceil(fileSize / split_count);
+
+  const readStreams = [];
+  for (let i = 0; i < split_count; i++) {
+    const readStream = fs.createReadStream(path, {
+      start: i * fragSize,
+      end: (i + 1) * fragSize - 1,
+    });
+    readStreams.push(readStream);
+  }
+
+  const result = await Promise.all(
+    readStreams.map(async (readStream, i) => {
+      const writeStream = fs.createWriteStream(`${path}.part${i}`);
+      readStream.pipe(writeStream);
+      const end = new Promise((res, rej) => {
+        readStream.on('end', () => {
+          writeStream.end();
+          res(true);
+        });
+        readStream.on('error', (err) => rej(err));
+      });
+      return end;
+    })
+  ).then((ends) => ends.every((end) => end === true));
+
+  if (result)
+    fs.unlink(path, (err) => {
+      if (err) throw err;
+      console.log('original file is deleted');
+    });
+
+  const fragPaths = [];
+  for (let i = 0; i < split_count; i++) {
+    fragPaths.push(`${path}.part${i}`);
+  }
+  return fragPaths;
 }
