@@ -2,6 +2,7 @@ CREATE TABLE ipfsdb.data (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     path varchar UNIQUE NOT NULL,
     mimetype varchar NOT NULL,
+    localpaths _varchar NOT NULL,
     cids _varchar NOT NULL,
     keys _varchar NOT NULL,
     created_at timestamp DEFAULT NOW() NOT NULL,

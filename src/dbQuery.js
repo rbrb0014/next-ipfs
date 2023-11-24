@@ -14,11 +14,11 @@ dbClient.connect((error) => {
   else console.log('postgresql connected');
 });
 
-export async function dataInsert(mimetype, path, cids, keys) {
+export async function dataInsert(mimetype, path, cids, keys, localpaths) {
   return dbClient
     .query(
-      'INSERT INTO ipfsdb.data (mimetype, path, cids, keys) VALUES ($1, $2, $3::varchar[], $4::varchar[]) RETURNING *',
-      [mimetype, path, cids, keys]
+      'INSERT INTO ipfsdb.data (mimetype, path, cids, keys, localpaths) VALUES ($1, $2, $3::varchar[], $4::varchar[], $5::varchar[]) RETURNING *',
+      [mimetype, path, cids, keys, localpaths]
     )
     .then(
       (result) => {
@@ -33,16 +33,30 @@ export async function dataInsert(mimetype, path, cids, keys) {
 }
 
 export async function dataSelectOne(path) {
-  const data = await dbClient.query(
-    'SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1',
-    [path]
-  );
-
-  return data.rows[0];
+  return dbClient
+    .query('SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1', [path])
+    .then(
+      (data) => {
+        if (data.rows.length == 1) return data.rows[0];
+        else throw new Error(`존재하지 않는 데이터 검색: ${path}`);
+      },
+      (err) => {
+        if (err) {
+          console.log('존재하지 않는 파일입니다. 경로: ', path);
+          throw err;
+        }
+      }
+    );
 }
 
 export async function dataClear() {
-  const result = await dbClient.query('DELETE FROM ipfsdb.data RETURNING *');
-  console.log(`delete ${result.rowCount} data`);
-  return result.rows;
+  return dbClient.query('DELETE FROM ipfsdb.data RETURNING *').then(
+    (result) => {
+      console.log(`delete ${result.rowCount} data`);
+      return result.rows;
+    },
+    (err) => {
+      if (err) throw err;
+    }
+  );
 }
