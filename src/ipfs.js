@@ -3,12 +3,10 @@ import { concat as uint8ArrayConcat } from 'uint8arrays/concat';
 import { Readable } from 'stream';
 
 export class IpfsService {
-  ipfs = null;
   constructor(url) {
     this.ipfs = create({ url });
-
-    return this;
   }
+
   async connect() {
     return this.ipfs.id().then(
       () => console.log('ipfs connected'),

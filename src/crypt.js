@@ -8,9 +8,8 @@ import {
 export class CrpytoService {
   constructor(ivString) {
     this.algorithm = 'aes-256-ctr';
-    this.ivString = ivString;
     this.IV = Buffer.from(
-      this.ivString >= 16 ? this.ivString : 'default password'
+      this.ivString >= 16 ? ivString : 'default password'
     ).subarray(0, 16);
   }
 
@@ -22,7 +21,7 @@ export class CrpytoService {
     const keys = [];
     const encryptedBufferFrags = bufferFrags.map((bufferFrag) => {
       const key = this.createKey();
-      const cipher = createCipheriv(algorithm, key, IV);
+      const cipher = createCipheriv(algorithm, key, this.IV);
 
       const encryptedBufferFrag = Buffer.concat([
         cipher.update(bufferFrag),
@@ -39,7 +38,7 @@ export class CrpytoService {
   async decrypt(targetBuffers, keys) {
     const decryptedBufferFrags = targetBuffers.map((buffer, i) => {
       const key = Buffer.from(keys[i], 'hex');
-      const decipher = createDecipheriv(algorithm, key, IV);
+      const decipher = createDecipheriv(algorithm, key, this.IV);
 
       const decryptedBufferFrag = Buffer.concat([
         decipher.update(buffer),
@@ -55,7 +54,7 @@ export class CrpytoService {
     const keys = [];
     const encryptStreams = fragStreams.map((fragStream) => {
       const key = this.createKey();
-      const cipher = createCipheriv(algorithm, key, IV);
+      const cipher = createCipheriv(this.algorithm, key, this.IV);
 
       keys.push(key.toString('hex'));
       return fragStream.pipe(cipher);
@@ -67,7 +66,7 @@ export class CrpytoService {
   decryptStream(encryptedStreams, keys) {
     return encryptedStreams.map((encryptedStream, i) => {
       const key = Buffer.from(keys[i], 'hex');
-      const decipher = createDecipheriv(algorithm, key, IV);
+      const decipher = createDecipheriv(this.algorithm, key, this.IV);
 
       return encryptedStream.pipe(decipher);
     });

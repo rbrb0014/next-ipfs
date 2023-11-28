@@ -3,11 +3,12 @@ import fs from 'fs';
 import express from 'express';
 import EventEmitter from 'events';
 import multer from 'multer';
-import { pipeline, Readable } from 'stream';
+// import { pipeline, Readable } from 'stream';
+import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { CrpytoService } from './src/crypt.js';
 import { DBClientORM } from './src/dbQuery.js';
-import { FragService } from './src/frag.js';
+// import { FragService } from './src/frag.js';
 import { IpfsService } from './src/ipfs.js';
 import { StreamService } from './src/stream.js';
 import { TimeMeasureService } from './src/time.js';
@@ -15,7 +16,7 @@ import { TimeMeasureService } from './src/time.js';
 EventEmitter.defaultMaxListeners = 20;
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+// const upload = multer({ storage: multer.memoryStorage() });
 const save = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -31,7 +32,7 @@ const cryptoService = new CrpytoService(process.env.IV_STRING);
 const ipfsService = new IpfsService('http://127.0.0.1:5001/api/v0');
 const timeMeasureService = new TimeMeasureService();
 const streamService = new StreamService(process.env.SPLIT_COUNT);
-const fragService = new FragService(process.env.SPLIT_COUNT);
+// const fragService = new FragService(process.env.SPLIT_COUNT);
 const pgClientORM = new DBClientORM({
   type: 'postgres',
   database: process.env.DB_DATABASE,
@@ -46,6 +47,7 @@ ipfsService.connect();
 /**
  * @deprecated memory에 너무 큰 파일을 올릴수 없음
  */
+/*
 app.post('/contents/stream', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer, size } = req.file;
   const sourceStream = Readable.from(buffer);
@@ -63,6 +65,7 @@ app.post('/contents/stream', upload.single('file'), async (req, res) => {
 
   res.json(insertResult);
 });
+*/
 
 //파일을 원본으로 저장함
 app.post('/contents/disk', save.single('file'), async (req, res) => {
@@ -75,9 +78,8 @@ app.post('/contents/disk', save.single('file'), async (req, res) => {
     `${directory}/${req.file.filename}`
   );
   const { keys, encryptStreams } = cryptoService.encryptStream(fragStreams);
-  const cids = await timeMeasureService.measureExecutionTimeAsync(
-    ipfsService.ipfsWriteStream,
-    encryptStreams
+  const cids = await timeMeasureService.measureExecutionTimeAsync(async () =>
+    ipfsService.ipfsWriteStream(encryptStreams)
   );
 
   const insertResult = await pgClientORM.dataInsert(
@@ -102,9 +104,8 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
 
   const fragStreams = streamService.createDistStreams(localpaths);
   const { keys, encryptStreams } = cryptoService.encryptStream(fragStreams);
-  const cids = await timeMeasureService.measureExecutionTimeAsync(
-    ipfsService.ipfsWriteStream,
-    encryptStreams
+  const cids = await timeMeasureService.measureExecutionTimeAsync(async () =>
+    ipfsService.ipfsWriteStream(encryptStreams)
   );
 
   const insertResult = await pgClientORM.dataInsert(
@@ -118,6 +119,10 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
+/**
+ * @deprecated 메모리에서 저장하는 방식이 비효율적이게됨
+ */
+/*
 app.post('/contents', upload.single('file'), async (req, res) => {
   const { originalname, mimetype, buffer } = req.file;
   const directory = req.query.path ?? '';
@@ -125,15 +130,13 @@ app.post('/contents', upload.single('file'), async (req, res) => {
 
   const bufferFrags = fragService.frag(buffer);
   const { encryptedBufferFrags, keys } = cryptoService.encrypt(bufferFrags);
-  const cids = await timeMeasureService.measureExecutionTimeAsync(
-    ipfsService.ipfsWrite,
-    encryptedBufferFrags,
-    path
-  );
+  const cids = await timeMeasureService.measureExecutionTimeAsync(() =>
+    ipfsService.ipfsWrite(encryptedBufferFrags, path);
   const insertResult = await pgClientORM.dataInsert(mimetype, path, cids, keys);
 
   res.json(insertResult);
 });
+*/
 
 app.get('/contents/stream', async (req, res) => {
   const path = 'upload/' + (req.query.path ?? '');
@@ -141,29 +144,32 @@ app.get('/contents/stream', async (req, res) => {
   const cryptFragStreams = ipfsService.ipfsReadStream(cids, path);
   const decryptedStreams = cryptoService.decryptStream(cryptFragStreams, keys);
 
-  res.set('Content-Type', mimetype);
-  for (const decryptedStream of decryptedStreams) {
-    console.log('sending frag...');
-    await promisify(pipeline)(decryptedStream, res, { end: false });
-  }
-  console.log('stream end.');
-  res.end();
+  await timeMeasureService.measureExecutionTimeAsync(async () => {
+    res.set('Content-Type', mimetype);
+    for (const decryptedStream of decryptedStreams) {
+      console.log('sending frag...');
+      await promisify(pipeline)(decryptedStream, res, { end: false });
+    }
+    console.log('stream end.');
+    res.end();
+  });
 });
 
+/**
+ * @deprecated 싹 만들어서 한번에 보내는 그림. 메모리 사용이라 무거움
+ */
+/*
 app.get('/contents', async (req, res) => {
   const path = 'upload/' + (req.query.path ?? '');
 
   const { cids, keys, mimetype } = await pgClientORM.dataSelectOne(path);
-  const bufferFrags = await timeMeasureService.measureExecutionTimeAsync(
-    ipfsService.ipfsRead,
-    cids,
-    path
-  );
+  const bufferFrags = await timeMeasureService.measureExecutionTimeAsync(() => ipfsService.ipfsRead(cids,path));
   const decryptedBufferFrags = await cryptoService.decrypt(bufferFrags, keys);
   const mergedData = await fragService.mergeFrags(decryptedBufferFrags);
 
   res.set('Content-Type', mimetype).send(mergedData);
 });
+*/
 
 app.delete('/pin', async (req, res) => {
   await pgClientORM.dataClear();

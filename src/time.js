@@ -1,30 +1,20 @@
 export class TimeMeasureService {
-  constructor() {
-    return this;
-  }
-
-  measureExecutionTime(func, ...args) {
+  measureExecutionTime(func) {
     const start = Date.now();
-
-    const result = func(...args); // 함수를 실행하고 결과를 저장합니다.
-
+    const result = func(); // 함수를 실행하고 결과를 저장합니다.
     const end = Date.now();
     const elapsed = end - start;
 
     console.log(`${func.name} 실행 시간: ${elapsed}ms`);
-
     return result; // 함수의 결과를 반환합니다.
   }
-  async measureExecutionTimeAsync(func, ...args) {
+  async measureExecutionTimeAsync(func) {
     const start = Date.now();
-
-    const result = await func(...args); // 함수를 실행하고 결과를 저장합니다.
-
+    const result = await func(); // 함수를 실행하고 결과를 저장합니다.
     const end = Date.now();
     const elapsed = end - start;
 
     console.log(`${func.name} 실행 시간: ${elapsed}ms`);
-
     return result; // 함수의 결과를 반환합니다.
   }
 }

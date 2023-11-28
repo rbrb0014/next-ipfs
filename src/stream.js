@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import fs from 'fs';
 import stream from 'stream';
 
@@ -48,7 +47,7 @@ export class StreamService {
     const fragSize = Math.ceil(fileSize / this.splitCount);
 
     const fragStreams = [];
-    for (let i = 0; i < split_count; i++) {
+    for (let i = 0; i < this.splitCount; i++) {
       const readStream = fs.createReadStream(`upload/${path}`, {
         start: i * fragSize,
         end: (i + 1) * fragSize - 1,
@@ -68,7 +67,7 @@ export class StreamService {
     const fragSize = Math.ceil(fileSize / this.splitCount);
 
     const readStreams = [];
-    for (let i = 0; i < split_count; i++) {
+    for (let i = 0; i < this.splitCount; i++) {
       const readStream = fs.createReadStream(path, {
         start: i * fragSize,
         end: (i + 1) * fragSize - 1,
