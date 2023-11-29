@@ -21,7 +21,7 @@ export class CrpytoService {
     const keys = [];
     const encryptedBufferFrags = bufferFrags.map((bufferFrag) => {
       const key = this.createKey();
-      const cipher = createCipheriv(algorithm, key, this.IV);
+      const cipher = createCipheriv(this.algorithm, key, this.IV);
 
       const encryptedBufferFrag = Buffer.concat([
         cipher.update(bufferFrag),
@@ -38,7 +38,7 @@ export class CrpytoService {
   async decrypt(targetBuffers, keys) {
     const decryptedBufferFrags = targetBuffers.map((buffer, i) => {
       const key = Buffer.from(keys[i], 'hex');
-      const decipher = createDecipheriv(algorithm, key, this.IV);
+      const decipher = createDecipheriv(this.algorithm, key, this.IV);
 
       const decryptedBufferFrag = Buffer.concat([
         decipher.update(buffer),
