@@ -34,7 +34,7 @@
     <img src="images/logo.png" alt="Logo" width="80" height="80">
   </a>
 
-<h3 align="center">ipfs decentral file saving</h3>
+<h3 align="center">IPFS Decentral File Saving Strategy</h3>
 
   <p align="center">
     ipfs fragments saving strategy like cache
