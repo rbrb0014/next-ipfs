@@ -41,13 +41,13 @@ pgClientORM.connect();
 ipfsService.connect();
 
 /**
- * save original file on disk. file fragments saved in ipfs.
+ * Save original file on disk. File fragments saved in ipfs.
+ * Not to be recommended.
  */
 app.post('/contents/disk', save.single('file'), async (req, res) => {
   const { originalname, mimetype, destination } = req.file;
   const directory = req.query.path ?? '';
   const path = `${destination}/${originalname}`;
-  console.log(path);
 
   const fragStreams = await streamService.createDiskFragStreams(
     `${directory}/${req.file.filename}`
@@ -69,7 +69,7 @@ app.post('/contents/disk', save.single('file'), async (req, res) => {
 });
 
 /**
- * save fragment file on disk and ipfs.
+ * Save fragment file on disk and ipfs.
  */
 app.post('/contents/disksplit', save.single('file'), async (req, res) => {
   const { originalname, mimetype, destination, path: localpath } = req.file;
@@ -97,7 +97,7 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
 });
 
 /**
- * get file as path info.
+ * Get file as path info. load from ipfs's fragment files.
  */
 app.get('/contents/stream', async (req, res) => {
   const path = 'upload/' + (req.query.path ?? '');
@@ -115,6 +115,25 @@ app.get('/contents/stream', async (req, res) => {
     res.end();
   });
 });
+
+/**
+ * Get file as path info. load from local disk's fragment files.
+ */
+app.get('/contents/cache', async (req, res) => {
+  const path = 'upload/' + (req.query.path ?? '');
+  const { localpaths, mimetype } = await pgClientORM.dataSelectOne(path);
+  const fileStreams = streamService.getFileStreams(localpaths);
+
+  await timeMeasureService.measureExecutionTimeAsync(async () => {
+    res.set('Content-Type', mimetype);
+    for (const fileStream of fileStreams) {
+      console.log('sending frag...');
+      await promisify(pipeline)(fileStream, res, { end: false });
+    }
+    console.log('stream end.');
+    res.end();
+  });
+})
 
 /**
  * delete pinned data and data in ipfsdb.data table.
