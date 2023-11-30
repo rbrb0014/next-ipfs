@@ -133,6 +133,7 @@ This is an example of how to list things you need to use the software and how to
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     path varchar UNIQUE NOT NULL,
     mimetype varchar NOT NULL,
+    localpaths _varchar NOT NULL,
     cids _varchar NOT NULL,
     keys _varchar NOT NULL,
     created_at timestamp DEFAULT NOW() NOT NULL,
@@ -170,6 +171,11 @@ This is an example of how to list things you need to use the software and how to
 <!-- USAGE EXAMPLES -->
 # Usage
 
+Start your server with writing a command below on the console with your project path.
+```sh
+npm run start
+```
+
 APIs below are activated APIs. it always has `<host_ip>:3000` in front.
 
 ## POST /contents/disksplit
@@ -187,7 +193,16 @@ On success, the call to this endpoint will return with 200 and the following bod
 ## GET /contents/stream
 Get file from ipfs server. It will give you original file you uploaded.
 ### Arguments
-* `path` [string]: write path. Need the initial slash. ex) `/my/path/my_file_name.ext` (o) `my/path/my_file_name.ext` (x)
+* `path` [string]: write path. Omit the initial slash. ex) `my/path/my_file_name.ext` (o) `/my/path/my_file_name.ext` (x)
+### Request Body
+None.
+### Response
+On success, the call to this endpoint will return with 200 and streamed file with mime type.
+
+## GET /contents/cache
+Get file from server's disk cache. It will give you original file you uploaded.
+### Arguments
+* `path` [string]: write path. Omit the initial slash. ex) `my/path/my_file_name.ext` (o) `/my/path/my_file_name.ext` (x)
 ### Request Body
 None.
 ### Response

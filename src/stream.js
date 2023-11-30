@@ -102,4 +102,8 @@ export class StreamService {
     }
     return fragPaths;
   }
+
+  getFileStreams(paths) {
+    return paths.map((path) => fs.createReadStream(path));
+  }
 }
