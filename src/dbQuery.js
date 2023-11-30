@@ -1,48 +1,90 @@
 import pg from 'pg';
-import 'dotenv/config';
 
-const dbClient = new pg.Client({
-  database: process.env.DB_DATABASE,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
+export class DBClientORM {
+  constructor({ type, database, host, port, user, password }) {
+    if (type === 'postgres')
+      this.dbClient = new PGClient({
+        database,
+        host,
+        port,
+        user,
+        password,
+      });
+    else throw new Error('지원하지 않는 DB 타입입니다.');
+  }
 
-dbClient.connect((error) => {
-  if (error) console.error('connection error', error.stack);
-  else console.log('postgresql connected');
-});
+  // 함수 직접연결 하려했으나 this의 지칭이 달라져 채택하지 않음
+  connect = () => this.dbClient.connect();
+  dataInsert = (mimetype, path, cids, keys, localpaths) =>
+    this.dbClient.dataInsert(mimetype, path, cids, keys, localpaths);
+  dataSelectOne = (path) => this.dbClient.dataSelectOne(path);
+  dataClear = () => this.dbClient.dataClear();
+}
 
-export async function dataInsert(mimetype, path, cids, keys) {
-  return dbClient
-    .query(
-      'INSERT INTO ipfsdb.data (mimetype, path, cids, keys) VALUES ($1, $2, $3::varchar[], $4::varchar[]) RETURNING *',
-      [mimetype, path, cids, keys]
-    )
-    .then(
+class PGClient {
+  constructor({ database, host, port, user, password }) {
+    if (this.pgClient == null)
+      this.pgClient = new pg.Client({
+        database,
+        host,
+        port,
+        user,
+        password,
+      });
+    else console.log('이미 존재하는 db정보입니다');
+  }
+
+  connect() {
+    this.pgClient.connect((error) => {
+      if (error) console.error('connection error', error.stack);
+      else console.log('postgresql connected');
+    });
+  }
+
+  async dataInsert(mimetype, path, cids, keys, localpaths) {
+    return this.pgClient
+      .query(
+        'INSERT INTO ipfsdb.data (mimetype, path, cids, keys, localpaths) VALUES ($1, $2, $3::varchar[], $4::varchar[], $5::varchar[]) RETURNING *',
+        [mimetype, path, cids, keys, localpaths]
+      )
+      .then(
+        (result) => {
+          console.log('data inserted. path :', result.rows[0].path);
+          return 'contents successfully saved';
+        },
+        (error) => {
+          console.error('data insert error :', error.stack);
+          return 'error occurred';
+        }
+      );
+  }
+
+  async dataSelectOne(path) {
+    return this.pgClient
+      .query('SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1', [path])
+      .then(
+        (data) => {
+          if (data.rows.length == 1) return data.rows[0];
+          else throw new Error('존재하지 않는 데이터 검색:', path);
+        },
+        (err) => {
+          if (err) {
+            console.log('DB 조회 도중 오류가 발생했습니다.');
+            throw err;
+          }
+        }
+      );
+  }
+
+  dataClear() {
+    return this.pgClient.query('DELETE FROM ipfsdb.data RETURNING *').then(
       (result) => {
-        console.log('data inserted. path :', result.rows[0].path);
-        return 'contents successfully saved';
+        console.log(`delete ${result.rowCount} data`);
+        return result.rows;
       },
-      (error) => {
-        console.error('data insert error :', error.stack);
-        return 'error occurred';
+      (err) => {
+        if (err) throw err;
       }
     );
-}
-
-export async function dataSelectOne(path) {
-  const data = await dbClient.query(
-    'SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1',
-    [path]
-  );
-
-  return data.rows[0];
-}
-
-export async function dataClear() {
-  const result = await dbClient.query('DELETE FROM ipfsdb.data RETURNING *');
-  console.log(`delete ${result.rowCount} data`);
-  return result.rows;
+  }
 }

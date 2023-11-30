@@ -4,44 +4,71 @@ import {
   randomBytes,
   scryptSync,
 } from 'crypto';
-import 'dotenv/config';
 
-const algorithm = 'aes-256-ctr';
-const ivString = process.env.IV_STRING;
-const IV = Buffer.from(ivString >= 16 ? ivString : 'default password').subarray(
-  0,
-  16
-);
+export class CrpytoService {
+  constructor(ivString) {
+    this.algorithm = 'aes-256-ctr';
+    this.IV = Buffer.from(
+      this.ivString >= 16 ? ivString : 'default password'
+    ).subarray(0, 16);
+  }
 
-export function encrypt(bufferFrags) {
-  const keys = [];
-  const encryptedBufferFrags = bufferFrags.map((bufferFrag) => {
-    const key = scryptSync(randomBytes(16), 'salt', 32);
-    const cipher = createCipheriv(algorithm, key, IV);
+  createKey() {
+    return scryptSync(randomBytes(16), 'salt', 32);
+  }
 
-    const encryptedBufferFrag = Buffer.concat([
-      cipher.update(bufferFrag),
-      cipher.final(),
-    ]);
+  encrypt(bufferFrags) {
+    const keys = [];
+    const encryptedBufferFrags = bufferFrags.map((bufferFrag) => {
+      const key = this.createKey();
+      const cipher = createCipheriv(this.algorithm, key, this.IV);
 
-    keys.push(key.toString('hex'));
-    return encryptedBufferFrag;
-  });
+      const encryptedBufferFrag = Buffer.concat([
+        cipher.update(bufferFrag),
+        cipher.final(),
+      ]);
 
-  return { encryptedBufferFrags, keys };
-}
+      keys.push(key.toString('hex'));
+      return encryptedBufferFrag;
+    });
 
-export async function decrypt(targetBuffers, keys) {
-  const decryptedBufferFrags = targetBuffers.map((buffer, i) => {
-    const key = Buffer.from(keys[i], 'hex');
-    const decipher = createDecipheriv(algorithm, key, IV);
+    return { encryptedBufferFrags, keys };
+  }
 
-    const decryptedBufferFrag = Buffer.concat([
-      decipher.update(buffer),
-      decipher.final(),
-    ]);
-    return decryptedBufferFrag;
-  });
+  async decrypt(targetBuffers, keys) {
+    const decryptedBufferFrags = targetBuffers.map((buffer, i) => {
+      const key = Buffer.from(keys[i], 'hex');
+      const decipher = createDecipheriv(this.algorithm, key, this.IV);
 
-  return decryptedBufferFrags;
+      const decryptedBufferFrag = Buffer.concat([
+        decipher.update(buffer),
+        decipher.final(),
+      ]);
+      return decryptedBufferFrag;
+    });
+
+    return decryptedBufferFrags;
+  }
+
+  encryptStream(fragStreams) {
+    const keys = [];
+    const encryptStreams = fragStreams.map((fragStream) => {
+      const key = this.createKey();
+      const cipher = createCipheriv(this.algorithm, key, this.IV);
+
+      keys.push(key.toString('hex'));
+      return fragStream.pipe(cipher);
+    });
+
+    return { keys, encryptStreams };
+  }
+
+  decryptStream(encryptedStreams, keys) {
+    return encryptedStreams.map((encryptedStream, i) => {
+      const key = Buffer.from(keys[i], 'hex');
+      const decipher = createDecipheriv(this.algorithm, key, this.IV);
+
+      return encryptedStream.pipe(decipher);
+    });
+  }
 }
