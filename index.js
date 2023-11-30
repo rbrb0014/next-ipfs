@@ -3,12 +3,10 @@ import fs from 'fs';
 import express from 'express';
 import EventEmitter from 'events';
 import multer from 'multer';
-// import { pipeline, Readable } from 'stream';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { CrpytoService } from './src/crypt.js';
 import { DBClientORM } from './src/dbQuery.js';
-// import { FragService } from './src/frag.js';
 import { IpfsService } from './src/ipfs.js';
 import { StreamService } from './src/stream.js';
 import { TimeMeasureService } from './src/time.js';
@@ -16,7 +14,6 @@ import { TimeMeasureService } from './src/time.js';
 EventEmitter.defaultMaxListeners = 20;
 
 const app = express();
-// const upload = multer({ storage: multer.memoryStorage() });
 const save = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -32,7 +29,6 @@ const cryptoService = new CrpytoService(process.env.IV_STRING);
 const ipfsService = new IpfsService('http://127.0.0.1:5001/api/v0');
 const timeMeasureService = new TimeMeasureService();
 const streamService = new StreamService(process.env.SPLIT_COUNT);
-// const fragService = new FragService(process.env.SPLIT_COUNT);
 const pgClientORM = new DBClientORM({
   type: 'postgres',
   database: process.env.DB_DATABASE,
@@ -45,29 +41,8 @@ pgClientORM.connect();
 ipfsService.connect();
 
 /**
- * @deprecated memory에 너무 큰 파일을 올릴수 없음
+ * save original file on disk. file fragments saved in ipfs.
  */
-/*
-app.post('/contents/stream', upload.single('file'), async (req, res) => {
-  const { originalname, mimetype, buffer, size } = req.file;
-  const sourceStream = Readable.from(buffer);
-  const directory = req.query.path ?? '';
-  const path = `${directory}/${originalname}`;
-
-  const fragStreams = await streamService.createFragStreams(sourceStream, size);
-  const { keys, encryptStreams } = cryptoService.encryptStream(fragStreams);
-  const cids = await timeMeasureService.measureExecutionTimeAsync(
-    ipfsService.ipfsWriteStream,
-    encryptStreams
-  );
-
-  const insertResult = await pgClientORM.dataInsert(mimetype, path, cids, keys);
-
-  res.json(insertResult);
-});
-*/
-
-//파일을 원본으로 저장함
 app.post('/contents/disk', save.single('file'), async (req, res) => {
   const { originalname, mimetype, destination } = req.file;
   const directory = req.query.path ?? '';
@@ -93,7 +68,9 @@ app.post('/contents/disk', save.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
-//파일을 쪼갠 후 저장함
+/**
+ * save fragment file on disk and ipfs.
+ */
 app.post('/contents/disksplit', save.single('file'), async (req, res) => {
   const { originalname, mimetype, destination, path: localpath } = req.file;
   const cloudpath = `${destination}/${originalname}`;
@@ -120,24 +97,8 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
 });
 
 /**
- * @deprecated 메모리에서 저장하는 방식이 비효율적이게됨
+ * get file as path info.
  */
-/*
-app.post('/contents', upload.single('file'), async (req, res) => {
-  const { originalname, mimetype, buffer } = req.file;
-  const directory = req.query.path ?? '';
-  const path = `${directory}/${originalname}`;
-
-  const bufferFrags = fragService.frag(buffer);
-  const { encryptedBufferFrags, keys } = cryptoService.encrypt(bufferFrags);
-  const cids = await timeMeasureService.measureExecutionTimeAsync(() =>
-    ipfsService.ipfsWrite(encryptedBufferFrags, path);
-  const insertResult = await pgClientORM.dataInsert(mimetype, path, cids, keys);
-
-  res.json(insertResult);
-});
-*/
-
 app.get('/contents/stream', async (req, res) => {
   const path = 'upload/' + (req.query.path ?? '');
   const { cids, keys, mimetype } = await pgClientORM.dataSelectOne(path);
@@ -156,21 +117,8 @@ app.get('/contents/stream', async (req, res) => {
 });
 
 /**
- * @deprecated 싹 만들어서 한번에 보내는 그림. 메모리 사용이라 무거움
+ * delete pinned data and data in ipfsdb.data table.
  */
-/*
-app.get('/contents', async (req, res) => {
-  const path = 'upload/' + (req.query.path ?? '');
-
-  const { cids, keys, mimetype } = await pgClientORM.dataSelectOne(path);
-  const bufferFrags = await timeMeasureService.measureExecutionTimeAsync(() => ipfsService.ipfsRead(cids,path));
-  const decryptedBufferFrags = await cryptoService.decrypt(bufferFrags, keys);
-  const mergedData = await fragService.mergeFrags(decryptedBufferFrags);
-
-  res.set('Content-Type', mimetype).send(mergedData);
-});
-*/
-
 app.delete('/pin', async (req, res) => {
   await pgClientORM.dataClear();
   await ipfsService.unpinAll();
@@ -178,6 +126,9 @@ app.delete('/pin', async (req, res) => {
   res.send('successfully unpinned');
 });
 
+/**
+ * delete MFS files and data in ipfsdb.data table.
+ */
 app.delete('/files', async (req, res) => {
   await pgClientORM.dataClear();
   await ipfsService.filesRemoveAll();
