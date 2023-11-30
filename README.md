@@ -228,8 +228,11 @@ successfully unpinned
 - [x] use stream strategy for managing file
 - [x] write initial readme
 - [ ] make additional apis
-  - [ ] make get api using stored file fragments (cache-like)
+  - [x] make get api using stored file fragments (cache-like)
+  - [ ] make get api that gives existing file path in database
+- [ ] update post api's response(return uploaded path in JSON form)
 - [ ] test with multiple ipfs nodes(actually, several desktop)
+- [ ] stream file parallelly
 
 See the [open issues](https://github.com/rbrb0014/next-ipfs/issues) for a full list of proposed features (and known issues).
 
