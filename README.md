@@ -228,7 +228,7 @@ successfully unpinned
 - [x] use stream strategy for managing file
 - [x] write initial readme
 - [ ] make additional apis
-  - [ ] make get api using stored file fragments (cache-like)
+  - [x] make get api using stored file fragments (cache-like)
 - [ ] test with multiple ipfs nodes(actually, several desktop)
 
 See the [open issues](https://github.com/rbrb0014/next-ipfs/issues) for a full list of proposed features (and known issues).
@@ -267,7 +267,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 <!-- CONTACT -->
 # Contact
 
-Your Name - rbrb0014@gmail.com
+Gyujin Kim - rbrb0014@gmail.com
 
 Project Link: [https://github.com/rbrb0014/next-ipfs](https://github.com/rbrb0014/next-ipfs)
 
