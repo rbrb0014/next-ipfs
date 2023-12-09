@@ -98,7 +98,8 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
 
 app.patch('/contents/path', async (req, res, next) => {
   const currentPath = 'upload/' + (req.query.currentPath ?? '');
-  const newPath = 'upload/' + (req.query.newPath ?? '');
+  const newPath =
+    'upload/' + (req.query.newPath ?? req.query.currentPath ?? '');
   const currentFileName = req.query.currentfilename ?? '';
   const newFileName = req.query.newfilename || currentFileName;
 
