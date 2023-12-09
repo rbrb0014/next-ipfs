@@ -62,6 +62,21 @@ export class StreamService {
     return paths.map((path) => fs.createReadStream(path));
   }
 
+  async moveFile(currentPath, newPath, filename) {
+    if (!fs.existsSync(newPath)) {
+      fs.mkdirSync(newPath, { recursive: true }, (err) => {
+        if (err) throw err;
+      });
+    }
+    fs.rename(`${currentPath}${filename}`, `${newPath}${filename}`, (err) => {
+      if (err) {
+        console.log('파일 옮기기에 실패했습니다.', err);
+        return false;
+      }
+    });
+    return true;
+  }
+
   async splitFile(path) {
     const fileSize = fs.statSync(path).size;
     const fragSize = Math.ceil(fileSize / this.splitCount);

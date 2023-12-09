@@ -18,6 +18,11 @@ export class DBClientORM {
   dataInsert = (mimetype, path, cids, keys, localpaths) =>
     this.dbClient.dataInsert(mimetype, path, cids, keys, localpaths);
   dataSelectOne = (path) => this.dbClient.dataSelectOne(path);
+  dataExist = (path) => this.dbClient.dataExist(path);
+  dataUpdatePath = (currentPath, newPath) =>
+    this.dbClient.dataUpdatePath(currentPath, newPath);
+  dataUpdateLocalPaths = (currentPath, newLocaPaths) =>
+    this.dbClient.dataUpdateLocalPaths(currentPath, newLocaPaths);
   dataClear = () => this.dbClient.dataClear();
 }
 
@@ -47,44 +52,71 @@ class PGClient {
         'INSERT INTO ipfsdb.data (mimetype, path, cids, keys, localpaths) VALUES ($1, $2, $3::varchar[], $4::varchar[], $5::varchar[]) RETURNING *',
         [mimetype, path, cids, keys, localpaths]
       )
-      .then(
-        (result) => {
-          console.log('data inserted. path :', result.rows[0].path);
-          return 'contents successfully saved';
-        },
-        (error) => {
-          console.error('data insert error :', error.stack);
-          return 'error occurred';
-        }
-      );
+      .then((result) => {
+        console.log('data inserted. path :', result.rows[0].path);
+        return 'contents successfully saved';
+      }, this.dbError);
   }
 
   async dataSelectOne(path) {
     return this.pgClient
       .query('SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1', [path])
-      .then(
-        (data) => {
-          if (data.rows.length == 1) return data.rows[0];
-          else throw new Error('존재하지 않는 데이터 검색:', path);
-        },
-        (err) => {
-          if (err) {
-            console.log('DB 조회 도중 오류가 발생했습니다.');
-            throw err;
-          }
-        }
-      );
+      .then((data) => {
+        if (data.rows.length == 1) return data.rows[0];
+        else throw new Error('존재하지 않는 데이터 검색:', path);
+      }, this.dbError);
+  }
+
+  async dataExist(path) {
+    return this.pgClient
+      .query('SELECT * FROM ipfsdb.data WHERE path = $1 LIMIT 1', [path])
+      .then((data) => {
+        if (data.rows.length == 1) return true;
+        else return false;
+      }, this.dbError);
+  }
+
+  async dataUpdatePath(currentPath, newLocaPath) {
+    return this.pgClient
+      .query('UPDATE ipfsdb.data SET path=$1 WHERE path = $2', [
+        newLocaPath,
+        currentPath,
+      ])
+      .then((data) => {
+        if (data.rowCount > 0)
+          return this.pgClient.query(
+            'SELECT * FROM ipfsdb.data WHERE path=$1',
+            [newLocaPath]
+          );
+        else throw new Error('수정한 데이터가 없습니다.');
+      });
+  }
+
+  async dataUpdateLocalPaths(currentPath, newPaths) {
+    return this.pgClient
+      .query('UPDATE ipfsdb.data SET localpaths=$1 WHERE path = $2', [
+        newPaths,
+        currentPath,
+      ])
+      .then((data) => {
+        if (data.rowCount > 0) return true;
+        else throw new Error('해당 수정할 데이터가 없습니다.', currentPath);
+      });
   }
 
   dataClear() {
-    return this.pgClient.query('DELETE FROM ipfsdb.data RETURNING *').then(
-      (result) => {
+    return this.pgClient
+      .query('DELETE FROM ipfsdb.data RETURNING *')
+      .then((result) => {
         console.log(`delete ${result.rowCount} data`);
         return result.rows;
-      },
-      (err) => {
-        if (err) throw err;
-      }
-    );
+      }, this.dbError);
   }
+
+  dbError = (err) => {
+    if (err) {
+      console.error('DB 쿼리 오류 발생', err.stack);
+      throw err;
+    }
+  };
 }
