@@ -223,6 +223,15 @@ None.
 ### Response
 On success, the call to this endpoint will return with 200 and streamed file with mime type.
 
+## GET /contents/path
+Get included filepaths in such path.
+### Arguments
+* `path` [string]: write path. Omit the initial slash. ex) `my/path/` (o) `/my/path/` (x)
+### Request Body
+None.
+### Response
+On success, the call to this endpoint will return with 200 and string array of filepath including filename and extension.
+
 ## DELETE /pin
 It remove every data in ipfs pinned and database's ipfsdb.data table.
 ### Arguments
@@ -244,9 +253,9 @@ successfully unpinned
 - [x] write initial readme
 - [ ] make additional apis
   - [x] make get api using stored file fragments (cache-like)
-  - [ ] make get api that gives existing file path in database
+  - [x] make get api that gives existing file path in database
   - [x] make patch api that change file path and name
-- [ ] update post api's response(return uploaded path in JSON form)
+- [ ] update post api's response(return uploaded path)
 
 See the [open issues](https://github.com/rbrb0014/next-ipfs/issues) for a full list of proposed features (and known issues).
 

@@ -23,6 +23,7 @@ export class DBClientORM {
     this.dbClient.dataUpdatePath(currentPath, newPath);
   dataUpdateLocalPaths = (currentPath, newLocaPaths) =>
     this.dbClient.dataUpdateLocalPaths(currentPath, newLocaPaths);
+  dataSelectPaths = (path) => this.dbClient.dataSelectPaths(path);
   dataClear = () => this.dbClient.dataClear();
 }
 
@@ -102,6 +103,13 @@ class PGClient {
         if (data.rowCount > 0) return true;
         else throw new Error('해당 수정할 데이터가 없습니다.', currentPath);
       });
+  }
+
+  async dataSelectPaths(path) {
+    const likePath = path + '%';
+    return this.pgClient
+      .query('SELECT path FROM ipfsdb.data WHERE path like $1', [likePath])
+      .then((data) => data.rows.map((row) => row.path), this.dbError);
   }
 
   dataClear() {

@@ -181,6 +181,17 @@ app.get('/contents/cache', async (req, res) => {
   });
 });
 
+app.get('/contents/path', async (req, res) => {
+  const path = 'upload/' + (req.query.path ?? '');
+  if (!path.endsWith('/')) {
+    res.status(404).send('잘못된 형식입니다. ex/am/ple/ 형식을 지켜주세요.');
+    return;
+  }
+
+  const paths = await pgClientORM.dataSelectPaths(path);
+  res.send(paths);
+});
+
 /**
  * delete pinned data and data in ipfsdb.data table.
  */
