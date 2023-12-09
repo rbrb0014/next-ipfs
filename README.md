@@ -189,6 +189,21 @@ On success, the call to this endpoint will return with 200 and the following bod
 ```
 "contents successfully saved"
 ```
+
+## PATCH /contents/path
+Change filepath and filename. It change localfile and db-saved path.
+###Arguments
+* `currentPath` [string]: Write current path. Omit the initial slash and require following slash. ex) `my/path/` (o) ` ` (o) `/my/path` (x) `/my/path/` (x)
+* `newPath` [string]: (Optional) Write new path. Omit the initial slash and require following slash. ex) `my/path/` (o) ` ` (o) `/my/path` (x) `/my/path/` (x)
+* `currentfilename` [string]: Write current name. include extension name. ex) `test.png` (o) `test` (x)
+* `newfilename` [string]: (Optional) Write new name. include extension name. ex) `test.png` (o) `test` (x)
+### Request Body
+None.
+### Response
+On success, the call to this endpoint will return with 200 and the following body:
+```
+move successfully
+```
   
 ## GET /contents/stream
 Get file from ipfs server. It will give you original file you uploaded.
@@ -230,9 +245,8 @@ successfully unpinned
 - [ ] make additional apis
   - [x] make get api using stored file fragments (cache-like)
   - [ ] make get api that gives existing file path in database
+  - [x] make patch api that change file path and name
 - [ ] update post api's response(return uploaded path in JSON form)
-- [ ] test with multiple ipfs nodes(actually, several desktop)
-- [ ] stream file parallelly
 
 See the [open issues](https://github.com/rbrb0014/next-ipfs/issues) for a full list of proposed features (and known issues).
 
@@ -270,7 +284,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 <!-- CONTACT -->
 # Contact
 
-Your Name - rbrb0014@gmail.com
+Gyujin Kim - rbrb0014@gmail.com
 
 Project Link: [https://github.com/rbrb0014/next-ipfs](https://github.com/rbrb0014/next-ipfs)
 
