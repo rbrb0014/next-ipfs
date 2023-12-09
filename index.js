@@ -96,6 +96,51 @@ app.post('/contents/disksplit', save.single('file'), async (req, res) => {
   res.json(insertResult);
 });
 
+app.patch('/contents/path', async (req, res, next) => {
+  const currentPath = 'upload/' + (req.query.currentPath ?? '');
+  const newPath = 'upload/' + (req.query.newPath ?? '');
+  const currentFileName = req.query.currentfilename ?? '';
+  const newFileName = req.query.newfilename || currentFileName;
+
+  if (!(await pgClientORM.dataExist(`${currentPath}${currentFileName}`))) {
+    res.status(400).json({ error: '원본 파일이 존재하지 않습니다.' });
+    return;
+  }
+
+  if (await pgClientORM.dataExist(`${newPath}${newFileName}`)) {
+    res.status(400).json({ error: '해당 경로에 이미 파일이 존재합니다.' });
+    return;
+  }
+
+  const newData = await pgClientORM.dataUpdatePath(
+    `${currentPath}${currentFileName}`,
+    `${newPath}${newFileName}`
+  );
+
+  const localNames = newData.rows[0].localpaths.map((currentLocalPath) =>
+    currentLocalPath.replace(/((.*(?=\\))|(.*(?=\/)))./, '')
+  );
+
+  const moveResult = await Promise.all(
+    localNames.map((localName) =>
+      streamService.moveFile(currentPath, newPath, localName)
+    )
+  ).then((filesMoved) => filesMoved.every((value) => value === true));
+
+  if (moveResult === true) {
+    console.log(
+      `update local cache file ${currentPath}${currentFileName} to ${newPath}${newFileName}`
+    );
+    await pgClientORM.dataUpdateLocalPaths(
+      `${newPath}${newFileName}`,
+      localNames.map((localName) => `${newPath}${localName}`)
+    );
+    res.send('move successfully');
+  } else {
+    res.send('move failed');
+  }
+});
+
 /**
  * Get file as path info. load from ipfs's fragment files.
  */
@@ -133,7 +178,7 @@ app.get('/contents/cache', async (req, res) => {
     console.log('stream end.');
     res.end();
   });
-})
+});
 
 /**
  * delete pinned data and data in ipfsdb.data table.
@@ -153,6 +198,11 @@ app.delete('/files', async (req, res) => {
   await ipfsService.filesRemoveAll();
 
   res.send('successfully files removed');
+});
+
+app.use((err, req, res, next) => {
+  console.error(typeof err, err.stack);
+  res.status(500).send('오류 발생');
 });
 
 app.listen(3000);
